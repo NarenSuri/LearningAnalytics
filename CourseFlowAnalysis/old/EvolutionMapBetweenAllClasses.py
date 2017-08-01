@@ -1,0 +1,189 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Mar 02 17:48:16 2017
+
+@author: nsuri
+"""
+
+########################################################################
+#### Goal :
+# Extract students by semester and see the transition of flow.
+########################################################################
+# loading the data with pandas
+
+
+# loading the data with pandas
+from AllFunctionsForDsAnalytics import AllFunctionsForDsAnalytics
+import sys
+import pandas as panda
+
+
+
+#################################################################################################################################################################################################################################################################    
+
+def createBinsForEachConsequtiveTerms(BinsToProcessNow,EnrolledClassData):
+    print ("Creating Bin for    " + str(BinsToProcessNow[0]) +"  -   "+str(BinsToProcessNow[1]) )
+    BinOneAllData = EnrolledClassData.loc[EnrolledClassData['ACAD_TERM_CD']== BinsToProcessNow[0]]
+    BinTwoAllData = EnrolledClassData.loc[EnrolledClassData['ACAD_TERM_CD']== BinsToProcessNow[1]]
+    
+    BinOne= BinOneAllData.ix[:,['PRSN_UNIV_ID Crypted','Course_Code']]
+    BinTwo= BinTwoAllData.ix[:,['PRSN_UNIV_ID Crypted','Course_Code']]
+    
+    return(BinOne,BinTwo)    
+
+
+def BinsOuterJoin(BinOne,BinTwo):       
+       Bin1_Bin2_Outer12 = BinOne.merge(BinTwo, left_on='PRSN_UNIV_ID Crypted', right_on='PRSN_UNIV_ID Crypted', how='outer')
+       Bin1_Bin2_Outer12 = Bin1_Bin2_Outer12.ix[(Bin1_Bin2_Outer12['PRSN_UNIV_ID Crypted'].notnull())&(Bin1_Bin2_Outer12['Course_Code_x'].notnull() )&( Bin1_Bin2_Outer12['Course_Code_y'].notnull() )]
+       return(Bin1_Bin2_Outer12)
+       
+def JoinAllResultsAndSave(ResultSet,FileName1):
+    print ("About to save the results to the File")
+    outfileName = path+FileName1
+    #outfileName2 = path+FileName2
+    ResultSet.to_csv(outfileName+'.csv', sep=',', encoding='utf-8')
+
+def AppendCourseTitles(EnrolledClassDataAllToBePreProcess,CourseTitlesDataFrame):
+    EnrolledClassDataAll = EnrolledClassDataAllToBePreProcess.merge(CourseTitlesDataFrame,on='CourseLable',how='left')
+    return EnrolledClassDataAll
+
+
+def ClassNumberTobeChoosen(EnrolledClassDataAllToBePreProcess,ClassNumbersToBeTakenCareOfAsInts):    
+#result = ["-"+EnrolledClassDataAllToBePreProcess['CLS_NBR'] if x in ClassNumbersToBeTakenCareOfAsInts else '' 
+           row=0
+           result=[]
+           for x in EnrolledClassDataAllToBePreProcess['CRS_CATLG_NBR']:
+               if x in ClassNumbersToBeTakenCareOfAsInts:
+                   result.append(EnrolledClassDataAllToBePreProcess.iloc[row,EnrolledClassDataAllToBePreProcess.columns.get_loc('CLS_NBR')])
+               else:
+                  result.append("")
+               row= row+1 
+           EnrolledClassDataAllToBePreProcess['IsClassNumberRequired'] = result
+####################################################################################################################################################################
+DsFunctionsLib = AllFunctionsForDsAnalytics()
+############################################################################################################################################################################################
+
+# load the excel sheet
+path ="C:/Users/nsuri/Desktop/LearningAnalyticsDS/Data/source/"
+FileName = "DS_CRS_4140_AnonymizedToShare.xlsx"
+CourseTitlesFileName = "CourseTitles-Complete-v2.xlsx"
+#FileName = "DataAnalyticsLearningProject_AnonymizedToShare_AnonymizedAndGeoCoded.xlsx"
+excelsheetSourceData = panda.ExcelFile(path+FileName)
+excelsheetTitlesData = panda.ExcelFile(path+CourseTitlesFileName)
+print (excelsheetSourceData.sheet_names)
+print (excelsheetSourceData.sheet_names[0])
+loadedDataDf = excelsheetSourceData.parse("Sheet1")
+CourseTitlesDataFrame = excelsheetTitlesData.parse("Sheet1")
+# some courses are topic courses, and these courses doesnt have any unique course number so please add such classes here and automatically class number will be added to such classes to uniquely define them
+ClassNumbersToBeTakenCareOfAsInts = [590,604,649,659]
+ClassNumbersToBeTakenCareOf = ['590','604','649','659']
+
+# select only the Enrolled classes by discarding the Dropped and WithDrawn Classes
+# we may work on finding the pattern among dropped and withdrawn classes later ; but for now the analysis is focused only on Enrolled classes
+EnrolledClassDataAllToBePreProcess = loadedDataDf.ix[(loadedDataDf['PRSN_UNIV_ID Crypted'].notnull())&(loadedDataDf['ACAD_PRM_PGM_CD'].notnull() )&( loadedDataDf['ACAD_PRM_PLAN_1_CD'].notnull() )&( loadedDataDf['ACAD_GRP_CD'].notnull())&(loadedDataDf['ACAD_ORG_CD'].notnull())&(loadedDataDf['ACAD_TERM_CD'].notnull())&(loadedDataDf['CRS_SUBJ_CD'].notnull())&(loadedDataDf['CRS_CATLG_NBR'].notnull())&(loadedDataDf['CLS_NBR'].notnull())&(loadedDataDf['CLS_INSTR_NM'].notnull())&(loadedDataDf['CRS_CMPNT_CD'].notnull())&(loadedDataDf['STU_ENRL_STAT_CD']=='E')&(loadedDataDf['STU_DRVD_CLS_ENRL_STAT_IND']=='E')&(loadedDataDf['STU_DRV_ENRL_STAT_IND']=='E')&(loadedDataDf['CRS_CMPNT_CD']!='DIS')]
+ClassNumberTobeChoosen(EnrolledClassDataAllToBePreProcess,ClassNumbersToBeTakenCareOfAsInts)
+EnrolledClassDataAllToBePreProcess["CourseLable"]= EnrolledClassDataAllToBePreProcess["ACAD_TERM_CD"].str.upper()+"-"+EnrolledClassDataAllToBePreProcess["CRS_SUBJ_CD"].str.upper()+EnrolledClassDataAllToBePreProcess["CRS_CATLG_NBR"].map(str)+EnrolledClassDataAllToBePreProcess["IsClassNumberRequired"]
+
+# Join course titles
+EnrolledClassDataAll = AppendCourseTitles(EnrolledClassDataAllToBePreProcess,CourseTitlesDataFrame)
+EnrolledClassDataAllToBePreProcess = EnrolledClassDataAllToBePreProcess[0:0]
+loadedDataDf = loadedDataDf[0:0]
+# Got Enrolled Data with enrollment type of only enrolled
+
+###############################################################
+# now we have all the data that we need; But we should do an outer join on the data by semester and course
+# so create a new column for each course name - as the name / number we have now is not suffinicient to maintain the unique nature in the data
+# ACAD_TERM_CD CRS_SUBJ_CD	CRS_CATLG_NBR
+
+## Process each record and put them in to the relevent semester bins
+
+# join the columns CRS_SUBJ_CD	CRS_CATLG_NBR
+EnrolledClassDataAll ['Course_Code'] = EnrolledClassDataAll['ACAD_TERM_CD'].map(str)+"-"+ EnrolledClassDataAll['CRS_SUBJ_CD'].map(str)+EnrolledClassDataAll['CRS_CATLG_NBR'].map(str) + EnrolledClassDataAll.apply(lambda row: DsFunctionsLib.isAddClassNumber(str(row['CRS_CATLG_NBR']),str(row['CLS_NBR']),ClassNumbersToBeTakenCareOf),axis=1)
+EnrolledClassDataAll ['Program_Started_In_Semester'] = None
+EnrolledClassDataAll ['FinishedAtleast4Semesters'] = None
+# Now lets create bins #SemOne #SemTwo #SemThree #SemFour
+
+# Aggregate and create bins
+# you should add here if you have more semesters in the data
+
+# intensionally asked to give instead of using a set on the semester column of the data - also the order matters so human decision is better than automation here. Also i wanted to make sure that developer knows whats going in the script here.
+#**** Order is important, so be careful  with the order you give here. 
+#CustomSortOrder = ['Spring 2014','Fall 2014','Spring 2015','Fall 2015','Spring 2016','Fall 2016','Spring 2017','Fall 2017']
+CustomSortOrder =['Spring 2014','Summer 2014','Fall 2014','Spring 2015','Summer 2015','Fall 2015','Spring 2016','Summer 2016','Fall 2016','Spring 2017','Summer 2017','Fall 2017']
+
+
+# Create a dictionary and lets create the semister order for each student, beacuse not all stundents have fall as their first semester
+
+PerStudentSemisterOrder = DsFunctionsLib.SemisterOrderOfaStudent(CustomSortOrder,EnrolledClassDataAll)
+PerStudentSemisterOrder = DsFunctionsLib.SortPerStudentSemisterOrder(PerStudentSemisterOrder,CustomSortOrder)
+########################################################### Now lets divide the data based on the semesters the students started their education#####################
+# the students who started their education in the spring , fall and summer are to be seperated out
+# take the complete data and make it into 3 pieces
+#Crating 3 datasets
+####@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@############################
+OnlyStudentsWith4SemestersModeSet=1
+EnrolledClassDataAll = DsFunctionsLib.divideDataSetToThree(EnrolledClassDataAll,PerStudentSemisterOrder,OnlyStudentsWith4SemestersModeSet)
+if OnlyStudentsWith4SemestersModeSet==1:
+    titleExtension = 'StudentsFinishedAtleast4Semesters'
+    EnrolledClassDataAll = EnrolledClassDataAll.loc[EnrolledClassDataAll['FinishedAtleast4Semesters']==1]
+else:
+    titleExtension = 'StudentsFinishedAnyNumberOfSemesters'
+#########@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@############################
+TypeOfProgram=['DSCI9','DSCI5']
+EnrolledClassData = None
+BinOne = None
+BinTwo = None
+Bin1_Bin2_Outer12 = None
+
+ResultSet = panda.DataFrame(columns=['PRSN_UNIV_ID Crypted', 'Course_Code_x','Course_Code_y'])
+for OnlineOrResendential in TypeOfProgram:
+    if OnlineOrResendential == 'DSCI9':
+        programTypeIs = 'Online'
+    elif OnlineOrResendential == 'DSCI5':
+        programTypeIs = 'Resedential'
+    else:
+        programTypeIs = 'UnKnown'
+
+    if EnrolledClassData is not None:
+        EnrolledClassData = EnrolledClassData[0:0]
+         
+    EnrolledClassData = EnrolledClassDataAll.loc[(EnrolledClassDataAll['ACAD_PRM_PGM_CD']== OnlineOrResendential)]
+        ########################################################## With Semesters Info #################################################################################
+
+# for n and n+1 combinations
+# Here i did it with the reverse logic. Instead of going to every node and coming back to compute, i did it other way. Take a sample nodes on paper and check both will lead to the same transactions.
+    for i in range(len(CustomSortOrder)): 
+        for k in range(len(CustomSortOrder)-i-1):
+            BinsToProcessNow =(CustomSortOrder[i],CustomSortOrder[k+1+i]) 
+            BinOne,BinTwo = createBinsForEachConsequtiveTerms(BinsToProcessNow,EnrolledClassData)
+            Bin1_Bin2_Outer12 = BinsOuterJoin(BinOne,BinTwo)
+            ResultSet = ResultSet.append(Bin1_Bin2_Outer12,ignore_index=True)
+        
+            if BinOne is not None:
+                BinOne = BinOne[0:0]
+                BinTwo = BinTwo[0:0]
+                Bin1_Bin2_Outer12 = Bin1_Bin2_Outer12[0:0]
+           
+
+
+# For n to all n-1 in forward direction combinations
+# 
+
+    '''
+    for i in range(len(CustomSortOrder)): 
+        for k in i+range(len(CustomSortOrder)-i-1):
+            BinsToProcessNow =(CustomSortOrder[i],CustomSortOrder[k+1]) 
+            BinOne,BinTwo = createBinsForEachConsequtiveTerms(BinsToProcessNow,EnrolledClassData)
+            Bin1_Bin2_Outer12 = BinsOuterJoin(BinOne,BinTwo)
+            ResultSet = ResultSet.append(Bin1_Bin2_Outer12,ignore_index=True)
+        
+            if BinOne is not None:
+                BinOne = BinOne[0:0]
+                BinTwo = BinTwo[0:0]
+                Bin1_Bin2_Outer12 = Bin1_Bin2_Outer12[0:0]
+      '''  
+                
+                
+    JoinAllResultsAndSave(ResultSet,programTypeIs+"-EvolutionOfCoursesDS-"+titleExtension)
+        
+sys.modules[__name__].__dict__.clear()
